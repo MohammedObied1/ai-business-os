@@ -1,0 +1,34 @@
+# Caddy gets and renews HTTPS certificates automatically.
+# app.example.com      → the web app
+# app.example.com/api  → the backend
+# Companies' own domains (white-label, set in the admin panel) get a certificate on first visit,
+# but only if the backend confirms the domain belongs to an active company.
+{
+	on_demand_tls {
+		ask http://backend:8000/api/public/domain-check
+	}
+}
+
+(app) {
+	encode gzip
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+	handle /health {
+		reverse_proxy backend:8000
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+
+{$DOMAIN} {
+	import app
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+	import app
+}

@@ -1,0 +1,26 @@
+# Production overrides: HTTPS through Caddy, nothing exposed except ports 80/443, no demo data.
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  backend:
+    ports: !reset []
+    environment:
+      SEED_DEMO: "false"
+
+  frontend:
+    ports: !reset []
+    build:
+      args: { NEXT_PUBLIC_API_URL: "" }  # same origin through Caddy → works on custom company domains too
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [frontend, backend]
+
+volumes:
+  caddy_data:

@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; --brand: 15 118 110; --brand-soft: 227 241 238; }
+html { font-feature-settings: "tnum" 1; }
+body { @apply bg-paper text-ink antialiased; }
+html[dir="rtl"] body { font-family: "Segoe UI", Tahoma, "Noto Sans Arabic", system-ui, sans-serif; }
+*:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.num { font-variant-numeric: tabular-nums; }
+.btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50; }
+.btn-primary { @apply btn bg-signal text-white hover:brightness-90; }
+.btn-ghost { @apply btn border border-line bg-white text-ink hover:bg-paper; }
+.link { @apply rounded-md px-2 py-1 text-sm font-medium text-signal hover:bg-signal-soft; }
+.link-danger { @apply rounded-md px-2 py-1 text-sm font-medium text-rust hover:bg-rust-soft; }
+.input { @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm placeholder:text-slate/60 focus:border-signal; }
+.label { @apply mb-1 block text-sm text-slate; }
+.panel { @apply rounded-xl border border-line bg-white; }
+.card-title { @apply px-4 pt-4 text-base font-semibold; }
+.th { @apply border-b border-line bg-paper/60 px-4 py-2.5 text-start text-xs font-medium text-slate; }
+.td { @apply border-b border-line/60 px-4 py-3 text-sm; }
+
+/* POS receipt: when body has .printing-receipt, print only the 80mm receipt */
+@media print {
+  body.printing-receipt * { visibility: hidden; }
+  body.printing-receipt .receipt, body.printing-receipt .receipt * { visibility: visible; }
+  body.printing-receipt .receipt { display: block !important; position: absolute; inset-inline-start: 0; top: 0; width: 76mm; font-size: 12px; font-family: Tahoma, sans-serif; color: #000; }
+  body.printing-receipt .receipt hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+  @page { margin: 4mm; }
+}
+
+/* Barcode labels: print only the label sheet */
+@media print {
+  body.printing-labels * { visibility: hidden; }
+  body.printing-labels .label-sheet, body.printing-labels .label-sheet * { visibility: visible; }
+  body.printing-labels .label-sheet { position: absolute; inset-inline-start: 0; top: 0; }
+  body.printing-labels .label { break-inside: avoid; border-color: transparent !important; }
+}
