@@ -96,6 +96,11 @@ def update_company(cid: int, payload: PlatformCompanyUpdate, admin: PlatformAdmi
         sub = saas.subscription(db, c)
         if "plan_id" in data:
             sub.plan_id = data["plan_id"]
+            # A formerly unlimited/free account needs a first paid period. Keep
+            # explicit admin end dates and already-paid periods unchanged.
+            if ("subscription_ends_at" not in data and sub.current_period_end is None
+                    and sub.status == "active" and sub.plan_id and saas.quote(db, sub)["total"] > 0):
+                saas.start(db, c, db.get(Plan, sub.plan_id), interval=sub.interval, trial=False)
         if "subscription_ends_at" in data:
             sub.current_period_end, sub.status = data["subscription_ends_at"], "active"
     db.commit()

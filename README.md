@@ -76,9 +76,14 @@ docker-compose.yml   Postgres + Redis + backend + frontend
 
 ## الاختبارات
 ```bash
-cd backend && python -m pytest -q     # 4 passed
+cd backend && python -m pytest -q     # 52 passed in the verified suite
 cd frontend && npx tsc --noEmit && npm run build
 ```
+
+Warehouse-transfer workflows use `/api/inventory/transfers` (including submit,
+approve, ship, receive and cancel). Cash/bank transfers keep `/api/transfers`.
+The frontend uses the corresponding endpoint for each operation. See
+[`docs/CI_FIXES.md`](docs/CI_FIXES.md) for the fixes and regression coverage.
 
 ## الإنتاج — ما يجب تغييره
 - `SECRET_KEY` عشوائي طويل، و`CORS_ORIGINS` للنطاق الحقيقي.

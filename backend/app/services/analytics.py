@@ -192,19 +192,20 @@ def sales_by_warehouse(db: Session, cid: int, start: date, end: date) -> list[di
 def sales_by_branch(db: Session, cid: int, start: date, end: date) -> list[dict]:
     """Revenue attributed to the order's own branch, falling back to its warehouse's branch (orders taken with no
     warehouse — e.g. quotations — land under "no branch")."""
+    branch_id = func.coalesce(SalesOrder.branch_id, Warehouse.branch_id)
+    totals = (
+        select(branch_id.label("branch_id"), func.sum(ORDER_NET).label("revenue"), func.count(SalesOrder.id).label("orders"))
+        .select_from(SalesOrder)
+        .outerjoin(Warehouse, and_(Warehouse.id == SalesOrder.warehouse_id, Warehouse.company_id == cid))
+        .where(SalesOrder.company_id == cid, SalesOrder.status.in_(ACTIVE_ORDER_STATUSES), SalesOrder.order_date.between(start, end))
+        .group_by(branch_id)
+        .subquery()
+    )
     rows = db.execute(
-        select(Branch.id, Branch.name, func.coalesce(func.sum(ORDER_NET), 0), func.count(SalesOrder.id))
-        .outerjoin(
-            SalesOrder,
-            and_(
-                func.coalesce(SalesOrder.branch_id, Warehouse.branch_id) == Branch.id,
-                SalesOrder.status.in_(ACTIVE_ORDER_STATUSES),
-                SalesOrder.order_date.between(start, end),
-            ),
-        )
-        .outerjoin(Warehouse, Warehouse.id == SalesOrder.warehouse_id)
+        select(Branch.id, Branch.name, func.coalesce(totals.c.revenue, 0), func.coalesce(totals.c.orders, 0))
+        .outerjoin(totals, totals.c.branch_id == Branch.id)
         .where(Branch.company_id == cid)
-        .group_by(Branch.id, Branch.name)
+        .order_by(Branch.id)
     ).all()
     return [{"branch_id": r[0], "name": r[1], "revenue": round(float(r[2]), 2), "orders": r[3]} for r in rows]
 

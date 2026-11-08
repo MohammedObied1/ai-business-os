@@ -39,7 +39,7 @@ def _transfer(db: Session, user: User, tid: int) -> StockTransfer:
     return t
 
 
-@router.get("/transfers")
+@router.get("/inventory/transfers")
 def list_transfers(response: Response, status: str | None = None, offset: int = 0, limit: int = Query(50, le=500),
                    user: User = Depends(require_permission("inventory.view")), db: Session = Depends(get_db)):
     stmt = select(StockTransfer).where(StockTransfer.company_id == user.company_id)
@@ -50,12 +50,12 @@ def list_transfers(response: Response, status: str | None = None, offset: int = 
     return [transfers.out(db, t) for t in page(db, stmt.order_by(StockTransfer.id.desc()), response, offset, limit)]
 
 
-@router.get("/transfers/{tid}")
+@router.get("/inventory/transfers/{tid}")
 def get_transfer(tid: int, user: User = Depends(require_permission("inventory.view")), db: Session = Depends(get_db)):
     return transfers.out(db, _transfer(db, user, tid))
 
 
-@router.post("/transfers", status_code=201)
+@router.post("/inventory/transfers", status_code=201)
 def create_transfer(payload: TransferIn, user: User = Depends(require_permission("inventory.transfer")), db: Session = Depends(get_db)):
     t = transfers.create(db, user, payload.from_warehouse_id, payload.to_warehouse_id, [ln.model_dump() for ln in payload.lines], payload.note)
     if payload.submit:
@@ -77,11 +77,11 @@ def _act(action):
     return run
 
 
-router.add_api_route("/transfers/{tid}/submit", _act(transfers.submit), methods=["POST"])
-router.add_api_route("/transfers/{tid}/approve", _act(transfers.approve), methods=["POST"])
-router.add_api_route("/transfers/{tid}/ship", _act(transfers.ship), methods=["POST"])
-router.add_api_route("/transfers/{tid}/receive", _act(transfers.receive), methods=["POST"])
-router.add_api_route("/transfers/{tid}/cancel", _act(transfers.cancel), methods=["POST"])
+router.add_api_route("/inventory/transfers/{tid}/submit", _act(transfers.submit), methods=["POST"])
+router.add_api_route("/inventory/transfers/{tid}/approve", _act(transfers.approve), methods=["POST"])
+router.add_api_route("/inventory/transfers/{tid}/ship", _act(transfers.ship), methods=["POST"])
+router.add_api_route("/inventory/transfers/{tid}/receive", _act(transfers.receive), methods=["POST"])
+router.add_api_route("/inventory/transfers/{tid}/cancel", _act(transfers.cancel), methods=["POST"])
 
 
 # ---------------------------------------------------------------- stock states

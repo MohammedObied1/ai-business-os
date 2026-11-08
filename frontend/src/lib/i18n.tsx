@@ -1148,6 +1148,7 @@ const AR: Record<string, string> = {
   "Map": "الخريطة",
   "Your location is saved with the visit (the phone will ask for permission).": "موقعك بنحفظ مع الزيارة (الموبايل رح يطلب إذن).",
   "visit.visited": "زيارة",
+  "visit.no_answer": "لا يوجد رد",
   "visit.ordered": "طلب",
   "visit.collected": "تحصيل",
   "visit.closed": "مسكّر",

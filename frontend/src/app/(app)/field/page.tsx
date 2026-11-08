@@ -10,7 +10,7 @@ import { WhatsAppButton } from "@/components/money";
 import { Badge, Field, Modal, PageTitle, Table, Tabs, toast } from "@/components/ui";
 
 const TABS = ["today", "visit log"] as const;
-const OUTCOMES = ["visited", "ordered", "collected", "closed", "not_interested"];
+const OUTCOMES = ["visited", "ordered", "collected", "no_answer", "closed", "not_interested"];
 
 function where(): Promise<{ lat: number; lng: number } | null> {
   return new Promise((res) => {

@@ -15,7 +15,7 @@ export default function Transfers() {
   const { t } = useT();
   const { can } = useSession();
   const [tab, setTab] = useState<(typeof TABS)[number]>("open");
-  const list = usePaged<any>(`/api/transfers?status=${STATUS_FILTER[tab]}`, [tab]);
+  const list = usePaged<any>(`/api/inventory/transfers?status=${STATUS_FILTER[tab]}`, [tab]);
   const warehouses = useApi<any[]>("/api/inventory/warehouses");
   const products = useApi<any[]>("/api/inventory/products");
   const [form, setForm] = useState<any>(null);
@@ -27,13 +27,13 @@ export default function Transfers() {
   const create = async (submit: boolean) => {
     setError(null);
     try {
-      const r = await api("/api/transfers", { method: "POST", json: { ...form, submit, lines: form.lines.filter((l: any) => l.product_id && +l.quantity > 0) } });
+      const r = await api("/api/inventory/transfers", { method: "POST", json: { ...form, submit, lines: form.lines.filter((l: any) => l.product_id && +l.quantity > 0) } });
       setForm(null); toast("Saved"); list.reload(); setView(r);
     } catch (e: any) { setError(e.message); }
   };
   const act = async (action: string, body?: any) => {
     try {
-      const r = await api(`/api/transfers/${view.id}/${action}`, { method: "POST", json: body ?? {} });
+      const r = await api(`/api/inventory/transfers/${view.id}/${action}`, { method: "POST", json: body ?? {} });
       setView(r); list.reload(); toast("Saved");
     } catch (e: any) { toast(e.message, "bad"); }
   };

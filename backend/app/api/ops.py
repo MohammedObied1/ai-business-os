@@ -484,7 +484,7 @@ def delivery_status(delivery_id: int, payload: DeliveryUpdate, user: User = Depe
 
 
 # ================================================================ field sales (reps)
-VISIT_OUTCOMES = ("visited", "ordered", "collected", "closed", "not_interested")
+VISIT_OUTCOMES = ("visited", "ordered", "collected", "no_answer", "closed", "not_interested")
 
 
 class VisitIn(BaseModel):

@@ -104,6 +104,27 @@ def _seed(client, h, m):
     _ok(client.post("/api/automation/run", headers=h), "automation")
     alerts = _ok(client.get("/api/alerts", headers=h), "alerts")
     ids["alert"] = alerts[0]["id"] if alerts else 0
+    target = _ok(client.post("/api/inventory/warehouses", headers=h, json={"name": f"Destination {m}"}), "destination")
+    ids["transfer"] = _ok(client.post("/api/inventory/transfers", headers=h, json={
+        "from_warehouse_id": ids["warehouse"], "to_warehouse_id": target["id"], "submit": False,
+        "lines": [{"product_id": ids["product"], "quantity": 1}],
+    }), "stock transfer")["id"]
+    ids["saved_report"] = _ok(client.post("/api/reports/saved", headers=h, json={"name": f"Report {m}", "report": "pnl"}), "saved report")["id"]
+    # Pending resources have no direct creation API; seed valid tenant-owned rows.
+    from app.core.database import SessionLocal
+    from app.models import User
+    from app.models.comms import Notification
+    from app.models.control import AiDraft
+    from app.models.ext import ImportBatch
+    owner_id = _ok(client.get("/api/auth/me", headers=h), "owner")["id"]
+    with SessionLocal() as db:
+        owner = db.get(User, owner_id)
+        notice = Notification(company_id=owner.company_id, user_id=owner_id, kind="low_stock", title=f"Notice {m}")
+        draft = AiDraft(company_id=owner.company_id, user_id=owner_id, tool="create_task", args={"title": f"Draft {m}"}, summary=f"Draft {m}")
+        batch = ImportBatch(company_id=owner.company_id, user_id=owner_id, entity="products", filename=f"import-{m}.csv")
+        db.add_all([notice, draft, batch])
+        db.commit()
+        ids.update(notification=notice.id, draft=draft.id, import_batch=batch.id)
     return ids
 
 
@@ -126,6 +147,7 @@ def _param_value(path: str, name: str, b: dict):
              "invoice_id": "invoice", "key_id": "key", "order_id": "order", "pl_id": "price_list", "po_id": "po", "product_id": "product",
              "promo_id": "promo", "proof_id": "proof", "rid": "recurring", "role_id": "role", "rule_id": "rule", "run_id": "payroll",
              "slip_id": "payslip", "supplier_id": "supplier", "task_id": "task", "user_id": "user", "warehouse_id": "warehouse", "number": "voucher"}
+    table.update(nid="notification", tid="transfer", report_id="saved_report", draft_id="draft", batch_id="import_batch")
     key = table.get(name)
     if key == "key":
         return b["key"]["id"]
@@ -167,7 +189,9 @@ def _body(method: str, path: str, b: dict):
 QUERY = {"/api/sales/orders/{order_id}/status": "?status=cancelled", "/api/purchasing/orders/{po_id}/status": "?status=cancelled",
          "/api/purchasing/orders/{po_id}/pay": "?amount=1", "/api/tasks/{task_id}/status": "?status=done"}
 
-SKIP_PARAMS = {"entity", "report", "code", "name", "slug", "token", "company_id", "cid", "plan_id", "number"}  # voucher numbers repeat per company: checked in the files test
+# Period/provider are company-local natural keys, not foreign record IDs. Their
+# isolation is exercised separately with the same key in both companies below.
+SKIP_PARAMS = {"entity", "report", "code", "name", "slug", "token", "company_id", "cid", "plan_id", "number", "period", "provider"}
 
 
 def test_path_ids_of_another_company_are_rejected(client, world):
@@ -407,6 +431,42 @@ def test_webhooks_and_background_jobs_stay_in_their_company(client, world):
             assert MARK not in f"{al.title} {al.message}"
     assert MARK not in client.get("/api/alerts", headers=world["ha"]).text
     assert MARK not in client.get("/api/tasks", headers=world["ha"]).text
+
+
+def test_company_local_period_and_provider_keys_do_not_modify_other_tenants(client, world, monkeypatch):
+    from app.core.database import SessionLocal
+    from app.models import User
+    from app.models.control import AccountingPeriod, Connection
+    from app.api import ops
+    ha, hb = world["ha"], world["hb"]
+    period = date.today().strftime("%Y-%m")
+    assert client.post(f"/api/accounting/periods/{period}/close", headers=hb, json={}).status_code == 200
+    assert client.post(f"/api/accounting/periods/{period}/close", headers=ha, json={}).status_code == 200
+    assert client.post(f"/api/accounting/periods/{period}/reopen", headers=ha, json={"note": "Tenant A correction"}).status_code == 200
+    assert client.put("/api/integrations/connections/whatsapp", headers=hb, json={
+        "provider": "whatsapp", "config": {"label": MARK}, "secret": "synthetic-tenant-b-secret",
+    }).status_code == 200
+    assert client.put("/api/integrations/connections/whatsapp", headers=ha, json={
+        "provider": "whatsapp", "config": {"label": "Tenant A"}, "secret": "synthetic-tenant-a-secret",
+    }).status_code == 200
+    aid = client.get("/api/auth/me", headers=ha).json()["id"]
+    bid = client.get("/api/auth/me", headers=hb).json()["id"]
+    with SessionLocal() as db:
+        acid, bcid = db.get(User, aid).company_id, db.get(User, bid).company_id
+    calls = []
+    def fake_send(db, cid, phone, text):
+        calls.append(cid)
+        return False
+    monkeypatch.setattr(ops.integrations_svc, "whatsapp_send", fake_send)
+    assert client.post("/api/integrations/connections/whatsapp/test?phone=test-recipient", headers=ha).status_code == 200
+    assert calls == [acid]  # No external message is sent by this test.
+    assert client.delete("/api/integrations/connections/whatsapp", headers=ha).status_code == 204
+    with SessionLocal() as db:
+        statuses = dict(db.execute(select(AccountingPeriod.company_id, AccountingPeriod.status).where(AccountingPeriod.period == period)).all())
+        assert statuses[acid] == "OPEN" and statuses[bcid] == "CLOSED"
+        other = db.scalar(select(Connection).where(Connection.company_id == bcid, Connection.provider == "whatsapp"))
+        assert other.secret == "synthetic-tenant-b-secret" and other.config == {"label": MARK}
+        assert db.scalar(select(Connection).where(Connection.company_id == acid, Connection.provider == "whatsapp")) is None
 
 
 def test_no_row_points_to_another_company(client, world):
